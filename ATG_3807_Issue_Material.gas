@@ -1,0 +1,370 @@
+Program.Sub.ScreenSU.Start
+gui.Form1..create
+gui.Form1..caption("Shortage")
+gui.Form1..size(6540,6000)
+gui.Form1..minx(0)
+gui.Form1..miny(0)
+gui.Form1..position(0,0)
+gui.Form1..event(unload,form1_unload)
+gui.Form1..alwaysontop(False)
+gui.Form1..fontname("Arial")
+gui.Form1..fontsize(8)
+gui.Form1..forecolor(0)
+gui.Form1..fontstyle(,,,,)
+gui.Form1..BackColor(-2147483633)
+gui.Form1..controlbox(True)
+gui.Form1..maxbutton(True)
+gui.Form1..minbutton(True)
+gui.Form1..mousepointer(0)
+gui.Form1..moveable(True)
+gui.Form1..sizeable(True)
+gui.Form1..ShowInTaskBar(True)
+gui.Form1..titlebar(True)
+gui.Form1.lblWO.create(label,"Work Order",True,960,255,1,200,200,True,0,Arial,8,-2147483633,0)
+gui.Form1.lblWO.defaultvalue("")
+gui.Form1.lblWO.controlgroup(0)
+gui.Form1.txtWo.create(textbox,"",True,1620,300,0,200,500,False,0,Arial,8,-2147483643,1)
+gui.Form1.txtWo.defaultvalue("")
+gui.Form1.txtWo.controlgroup(0)
+gui.Form1.cmdOK.create(button)
+gui.Form1.cmdOK.caption("OK")
+gui.Form1.cmdOK.visible(True)
+gui.Form1.cmdOK.size(855,375)
+gui.Form1.cmdOK.zorder(0)
+gui.Form1.cmdOK.position(200,4885)
+gui.Form1.cmdOK.enabled(True)
+gui.Form1.cmdOK.fontname("Arial")
+gui.Form1.cmdOK.fontsize(8)
+gui.Form1.cmdOK.event(click,cmdok_click)
+gui.Form1.cmdOK.defaultvalue("")
+gui.Form1.cmdOK.controlgroup(0)
+gui.Form1.gsfgShort.create(gsflexgrid)
+gui.Form1.gsfgShort.FixedRows(0)
+gui.Form1.gsfgShort.FixedCols(0)
+gui.Form1.gsfgShort.visible(True)
+gui.Form1.gsfgShort.size(5835,3510)
+gui.Form1.gsfgShort.zorder(0)
+gui.Form1.gsfgShort.position(200,1100)
+gui.Form1.gsfgShort.enabled(True)
+
+
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Variable.Global.sSfx.Declare(String)
+Variable.Global.sWO.Declare(String)
+Variable.Global.sLog.Declare(String)
+Variable.Global.sPartToMake.Declare(String)
+Variable.UDT.uPart.Define("sBin",String,Bin)
+Variable.UDT.uPart.Define("sHeat",String,Heat)
+Variable.UDT.uPart.Define("sLoc",String,Location)
+Variable.UDT.uPart.Define("sLot",String,Lot)
+Variable.UDT.uPart.Define("sPart",String,Part)
+Variable.UDT.uPart.Define("sSerial",String,Serial_Number)
+Variable.UDT.uPart.Define("sSeq",String)
+Variable.UDT.uPart.Define("iQuantity",String,Quantity)
+Variable.uGlobal.uPart.Declare("uPart")
+Variable.UDT.uJob.Define("sPart",String,Part)
+Variable.UDT.uJob.Define("sSeq",String,Seq)
+Variable.UDT.uJob.Define("iUnits",Float,Hours_Estimated)
+Variable.uGlobal.uJob.Declare("uJob")
+Variable.UDT.uShort.Define("sSeq",String)
+Variable.UDT.uShort.Define("iReq",Float)
+Variable.UDT.uShort.Define("iIssued",Float)
+Variable.UDT.uShort.Define("iShort",Float)
+Variable.UDT.uShort.Define("sPart",String)
+Variable.uGlobal.uShort.Declare("uShort")
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+V.Local.sError.Declare(String)
+V.Local.bExists.Declare
+V.Local.sDirectory.Declare
+V.Local.sFile.Declare
+V.Local.sRet.Declare
+
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+F.Intrinsic.Control.CallSub(Buildstyle)
+
+'Select WO to Issue Material
+F.Intrinsic.UI.CommonBrowser(1000,"",V.Local.sRet)
+F.Intrinsic.Control.If(V.Local.sRet,=,"***CANCEL***")
+	F.Intrinsic.UI.Msgbox("Select a WO to be Processed","Issue Material")
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.UI.InvokeWaitDialog("Issuing Material . . .","Issue Material")
+F.Intrinsic.UI.ChangeWaitStatus("Issuing Material . . .",0)
+
+F.Intrinsic.String.Split(V.Local.sRet,"*!*",V.Local.sRet)
+V.GLobal.sWO.Set(V.Local.sRet(0))
+V.GLobal.sSfx.Set(V.Local.sRet(1))
+
+'DB Connection
+F.ODBC.Connection!Con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+
+F.Intrinsic.UI.ChangeWaitStatus("Issuing Material . . .",5)
+
+F.Intrinsic.Control.CallSub(Createfile)
+
+'Write to Issue Log
+F.Intrinsic.String.Concat(V.Caller.FilesDir,"\Material Issue Audit",V.Local.sDirectory)
+F.Intrinsic.File.DirExists("",V.Local.bExists)
+F.Intrinsic.Control.If(V.Local.bExists,=,False)
+	F.Intrinsic.File.CreateDir(V.Local.sDirectory)
+F.Intrinsic.Control.EndIf
+F.Intrinsic.String.Concat(V.Local.sDirectory,"\IMLog",V.Ambient.Now.Format*.MMDDYYHHMMSS,V.Local.sFile)
+F.Intrinsic.Control.If(V.Global.sLog.Trim,<>,"")
+	F.Intrinsic.File.String2File(V.Local.sFile,V.Global.sLog)
+F.Intrinsic.Control.EndIf
+
+F.ODBC.Connection!Con.Close
+
+F.Intrinsic.UI.ChangeWaitStatus("Issuing Material . . .",100)
+F.Intrinsic.UI.CloseWaitDialog
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: ATG_3807_Issue_Material.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.Main.End
+
+Program.Sub.CreateFile.Start
+V.Local.sError.Declare(String)
+V.Local.bLog.Declare
+V.Local.iUnits.Declare
+V.Local.iWait.Declare
+V.Local.sField.Declare
+V.Local.sFile.Declare
+V.Local.sFilePath.Declare
+V.Local.sLine.Declare
+V.Local.sOpID.Declare
+V.Local.sPart.Declare
+V.Local.sSql.Declare
+V.Local.sRet.Declare(String)
+V.Local.sShort.Declare(String)
+V.Local.iCount.Declare(Long)
+V.Local.iCount2.Declare(Long)
+V.Local.iCountP.Declare(Long)
+V.Local.iCountS.Declare(Long)
+
+F.Intrinsic.Control.SetErrorHandler("Createfile_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.uGlobal.uPart.Redim(0,0)
+V.uGlobal.uShort.Redim(-1,-1)
+
+'Get Opportunity ID
+F.Intrinsic.String.Concat("select DRAWING_CUSTOMER, Part from JOB_HEADER where Job='",V.GLobal.sWO,"' and Suffix='",V.GLobal.sSfx,"'",V.Local.sSql)
+F.ODBC.Connection!Con.OpenLocalRecordsetRO("rst",V.Local.sSql)
+F.Intrinsic.Control.If(V.ODBC.Con!rst.EOF,=,False)
+	V.Local.sOpID.Set(V.ODBC.Con!rst.FieldVal!DRAWING_CUSTOMER)
+	V.Global.sPartToMake.Set(V.ODBC.Con!rst.FieldVal!Part)
+F.Intrinsic.Control.EndIf
+F.ODBC.Con!rst.Close
+
+F.Intrinsic.UI.ChangeWaitStatus("Issuing Material . . .",10)
+V.Local.iWait.Set(10)
+
+'Get the material sequence of the work order and save it to a udt.
+F.Intrinsic.String.Concat("select * from JOB_OPERATIONS where JOB='",V.GLobal.sWO,"' and LMO='M' and PART <> '' and HOURS_ACTUAL = 0",V.Local.sSql)
+F.ODBC.Connection!Con.OpenLocalRecordsetRO("rstJob",V.Local.sSql)
+F.Intrinsic.Control.If(V.ODBC.Con!rstJob.EOF,=,False)
+	F.Intrinsic.Variable.LoadUDTFromRecordset("Con","rstJob","v.uGlobal.uJob",False)
+F.Intrinsic.Control.Else
+	F.Intrinsic.UI.Msgbox("There are no Material Sequences found!","Error")
+F.Intrinsic.Control.EndIf
+F.ODBC.Con!rstJob.Close
+
+'Loop through the material sequences.  For each sequence get a quantity, and lot/Bin/heat/serial that has not been saved yet.
+F.Intrinsic.Control.For(V.Local.iCount,0,V.uGlobal.uJob.UBound,1)
+
+	F.Intrinsic.String.Concat("select Location, Lot, Bin, Heat, Serial_Number, Part, Quantity from ITEM_MASTER where RTrim(part)='",V.uGlobal.uJob(v.Local.iCount)!sPart.Trim,"' and RTrim(Lot) = '",V.Local.sOpID.Trim,"' and Quantity >0",V.Local.sSql)
+	F.ODBC.Connection!Con.OpenLocalRecordsetRO("rstItem",V.Local.sSql)
+	F.Intrinsic.Control.If(V.ODBC.Con!rstItem.EOF,=,False)
+		F.Intrinsic.Control.DoUntil(V.Local.iCount2,=,V.uGlobal.uJob(v.Local.iCount)!iUnits,"OR",V.ODBC.Con!rstItem.EOF,=,True)
+			
+			
+			
+			'Check to see if this serial number has already been saved to the udt.  it if has it will be skipped and move to the next.
+			F.Intrinsic.Variable.UDTMultiSeek(V.uGlobal.uPart!sSerial,V.ODBC.Con!rstItem.FieldValTrim!serial_number,V.uGlobal.uPart!sBin,V.ODBC.Con!rstItem.FieldValTrim!Bin,V.uGlobal.uPart!sHeat,V.ODBC.Con!rstItem.FieldValTrim!Heat,V.uGlobal.uPart!sPart,V.ODBC.Con!rstItem.FieldValTrim!Part,V.Local.sRet)
+'			F.Intrinsic.Variable.UDTSeek(V.uGlobal.uPart!sSerial,V.ODBC.Con!rstItem.FieldValTrim!serial_number,4,V.Local.sRet)
+			F.Intrinsic.String.Split(V.Local.sRet,"*!*",V.Local.sRet)
+			F.Intrinsic.Control.If(V.Local.sRet(0),=,"")
+	
+				V.uGlobal.uPart.RedimPreserve(0,V.Local.iCountP)
+				'Save the data to the issue material udt
+				F.Intrinsic.Control.If(V.uGlobal.uJob(v.Local.iCount)!iUnits,>=,V.ODBC.Con!rstItem.FieldVal!Quantity)
+					V.uGlobal.uPart(v.Local.iCountP)!sPart.Set(V.uGlobal.uJob(v.Local.iCount)!sPart)
+					V.uGlobal.uPart(v.Local.iCountP)!sLoc.Set(V.ODBC.Con!rstItem.FieldValTrim!Location)
+					V.uGlobal.uPart(v.Local.iCountP)!sLot.Set(V.ODBC.Con!rstItem.FieldValTrim!Lot)
+					V.uGlobal.uPart(v.Local.iCountP)!sBin.Set(V.ODBC.Con!rstItem.FieldValTrim!Bin)
+					V.uGlobal.uPart(v.Local.iCountP)!sHeat.Set(V.ODBC.Con!rstItem.FieldValTrim!Heat)
+					V.uGlobal.uPart(v.Local.iCountP)!sSerial.Set(V.ODBC.Con!rstItem.FieldValTrim!Serial_Number)
+					V.uGlobal.uPart(v.Local.iCountP)!iQuantity.Set(V.ODBC.Con!rstItem.FieldValTrim!Quantity)
+					V.uGlobal.uPart(v.Local.iCountP)!sSeq.Set(V.uGlobal.uJob(v.Local.iCount)!sSeq)
+					F.Intrinsic.Math.Add(V.Local.iCountP,1,V.Local.iCountP)
+					F.Intrinsic.Math.Add(V.Local.iCount2,V.ODBC.Con!rstItem.FieldValTrim!Quantity,V.Local.iCount2)
+				F.Intrinsic.Control.EndIf
+			F.Intrinsic.Control.EndIf
+			F.ODBC.Con!rstItem.MoveNext
+		F.Intrinsic.Control.Loop
+
+F.Intrinsic.UI.ChangeWaitStatus("Issuing Material. . .",50)
+'need to check here if all need were issued
+		F.Intrinsic.Control.If(V.Local.iCount2,<,V.uGlobal.uJob(v.Local.iCount)!iUnits)
+			F.Intrinsic.Control.If(V.uGlobal.uShort.UBound,=,-1)
+				V.uGlobal.uShort.Redim(0,0)
+			F.Intrinsic.Control.EndIf
+			V.uGlobal.uShort.RedimPreserve(0,V.Local.iCountS)
+			V.uGlobal.uShort(v.Local.iCountS)!sPart.Set(V.uGlobal.uJob(v.Local.iCount)!sPart)
+			V.uGlobal.uShort(v.Local.iCountS)!sSeq.Set(V.uGlobal.uJob(v.Local.iCount)!sSeq)
+			V.uGlobal.uShort(v.Local.iCountS)!iIssued.Set(V.Local.iCount2)
+			V.uGlobal.uShort(v.Local.iCountS)!iReq.Set(V.uGlobal.uJob(v.Local.iCount)!iUnits)
+			F.Intrinsic.Math.Sub(V.uGlobal.uJob(v.Local.iCount)!iUnits,V.Local.iCount2,V.uGlobal.uShort(v.Local.iCountS)!iShort)
+			F.Intrinsic.Math.Add(V.Local.iCountS,1,V.Local.iCountS)
+		F.Intrinsic.Control.EndIf
+		V.Local.iCount2.Set(0)
+	F.Intrinsic.Control.EndIf
+	F.ODBC.Con!rstItem.Close
+F.Intrinsic.Control.Next(V.Local.iCount)
+
+'Loop through the issue material udt and save it to the file
+F.Intrinsic.Control.For(V.Local.iCount,0,V.uGlobal.uPart.UBound,1)
+	'Part
+	F.Intrinsic.String.Left(V.uGlobal.uPart(v.Local.iCount)!sPart,20,V.Local.sField)
+	F.Intrinsic.Control.If(V.Local.sLine.Trim,=,"")
+		V.Local.sLine.Set(V.Local.sField.Trim)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.String.Concat(V.Local.sLine,V.Ambient.NewLine,V.Local.sField.Trim,V.Local.sLine)
+	F.Intrinsic.Control.EndIf
+	'Rev
+	F.Intrinsic.String.Mid(V.uGlobal.uPart(v.Local.iCount)!sPart,18,3,V.Local.sField)
+	F.Intrinsic.String.Concat(V.Local.sLine,V.Ambient.Tab,V.Local.sField.Trim,V.Local.sLine)
+	'Location	
+	F.Intrinsic.String.Concat(V.Local.sLine,V.Ambient.Tab,V.uGlobal.uPart(v.Local.iCount)!sLoc.Trim,V.Local.sLine)
+	'Quantity
+	F.Intrinsic.String.Format(V.uGlobal.uPart(v.Local.iCount)!iQuantity,"#######.0000",V.uGlobal.uPart(v.Local.iCount)!iQuantity)
+	F.Intrinsic.String.Concat(V.Local.sLine,V.Ambient.Tab,V.uGlobal.uPart(v.Local.iCount)!iQuantity,V.Local.sLine)
+	'Lot, Bin
+	F.Intrinsic.String.Concat(V.Local.sLine,V.Ambient.Tab,V.uGlobal.uPart(v.Local.iCount)!sLot.Trim,V.Ambient.Tab,V.uGlobal.uPart(v.Local.iCount)!sBin.Trim,V.Local.sLine)
+	'Heat
+	F.Intrinsic.String.Concat(V.Local.sLine,V.Ambient.Tab,V.uGlobal.uPart(v.Local.iCount)!sHeat.Trim,V.Local.sLine)
+	'Serial
+	F.Intrinsic.String.Concat(V.Local.sLine,V.Ambient.Tab,V.uGlobal.uPart(v.Local.iCount)!sSerial.Trim,V.Local.sLine)
+	'WO, Sfx, Seq
+	F.Intrinsic.String.Concat(V.Local.sLine,V.Ambient.Tab,V.Global.sWO,V.Ambient.Tab,V.Global.sSfx,V.Ambient.Tab,V.uGlobal.uPart(v.Local.iCount)!sSeq.Trim,V.Local.sLine)
+
+
+F.Intrinsic.Control.Next(V.Local.iCount)
+F.Intrinsic.UI.ChangeWaitStatus("Issuing Material. . .",100)
+
+F.Intrinsic.String.Concat("I",V.Caller.CompanyCode,"IM",V.Caller.Terminal,V.Local.sFile)
+F.Intrinsic.String.Concat(V.Caller.FilesDir,"\",V.Local.sFile,V.Local.sFilePath)
+F.Intrinsic.File.String2File(V.Local.sFilePath,V.Local.sLine)
+
+
+
+F.Global.General.CallWrapperAsync(450101,V.Local.sFile)
+
+'Show screen with shortages
+F.Intrinsic.Control.If(V.uGlobal.uShort.UBound,!=,-1)
+	F.Intrinsic.String.Concat(V.Global.sWO,"-",V.Global.sSfx,V.Global.sWO)
+	Gui.Form1.txtWo.Text(V.Global.sWO)
+	Gui.Form1.gsfgShort.LoadFromUDT("v.uGlobal.uShort","sSeq*!*sPart*!*iReq*!*iIssued*!*iShort",1,V.uGlobal.uShort.LBound,V.uGlobal.uShort.UBound)
+	Gui.Form1..Show
+F.Intrinsic.Control.Else
+	F.Intrinsic.UI.Msgbox("All Material issued to work order successfully!","Success")
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Createfile_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: ATG_3807_Issue_Material.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.CreateFile.End
+
+Program.Sub.Issue_Log.Start
+'Create Log File For qty Overage or shortage
+V.Local.iWOQty.Declare
+V.Local.iItemQty.Declare
+V.Local.sQtyDiff.Declare
+
+'Job, Sfx, Part to make, Part, Loc, Seq
+F.Intrinsic.String.Concat(V.Global.sLog,V.Global.sWO,",",V.Global.sSfx,",",V.Global.sPartToMake,",",V.Args.Part.Trim,",",V.Args.Loc.Trim,",",V.Args.seq,V.Global.sLog)
+'WO Qty, Item Master Qty Amount Over/under
+V.Local.iWOQty.Set(V.Args.WOQty)
+V.Local.iItemQty.Set(V.Args.ItemQty)
+F.Intrinsic.Math.Sub(V.Local.iItemQty,V.Local.iWOQty,V.Local.sQtyDiff)
+F.Intrinsic.String.Concat(V.Global.sLog,",",V.Local.iWOQty,",",V.Local.iItemQty,",",V.Local.sQtyDiff,V.Ambient.NewLine,V.Global.sLog)
+
+Program.Sub.Issue_Log.End
+
+program.sub.cmdok_click.start
+F.Intrinsic.Control.CallSub(Form1_unload)
+
+program.sub.cmdok_click.end
+
+Program.Sub.BuildStyle.Start
+
+'Sequence, Part, Required, Issued, Shortage
+Gui.Form1.gsfgShort.Cols(5)
+Gui.Form1.gsfgShort.Rows(2)
+Gui.Form1.gsfgShort.FixedRows(1)
+
+Gui.Form1.gsfgShort.SetColumnPercentages(".20:.35:.15:.15:.15")
+'BuildStyle
+'Column 0
+'Style 1
+Gui.Form1.gsfgShort.BuildStyle(1,0,"Format","Alignment",2)
+Gui.Form1.gsfgShort.BuildStyle(1,0,"Type","Locked",True)
+
+'Column 1
+'Style 1
+Gui.Form1.gsfgShort.BuildStyle(1,1,"Format","Alignment",2)
+Gui.Form1.gsfgShort.BuildStyle(1,1,"Type","Locked",True)
+
+'Column 2
+'Style 1
+Gui.Form1.gsfgShort.BuildStyle(1,2,"Format","Alignment",2)
+Gui.Form1.gsfgShort.BuildStyle(1,2,"Type","Locked",True)
+
+'Column 3
+'Style 1
+Gui.Form1.gsfgShort.BuildStyle(1,3,"Format","Alignment",2)
+Gui.Form1.gsfgShort.BuildStyle(1,3,"Type","Locked",True)
+
+'Column 4
+'Style 1
+Gui.Form1.gsfgShort.BuildStyle(1,4,"Format","Alignment",2)
+Gui.Form1.gsfgShort.BuildStyle(1,4,"Type","Locked",True)
+
+
+Gui.Form1.gsfgShort.TextMatrix(0,0,"Seq")
+Gui.Form1.gsfgShort.TextMatrix(1,0,"Part")
+Gui.Form1.gsfgShort.TextMatrix(2,0,"Required")
+Gui.Form1.gsfgShort.TextMatrix(3,0,"Issued")
+Gui.Form1.gsfgShort.TextMatrix(4,0,"Short")
+
+Gui.Form1.gsfgShort.ApplyStyle(0,1)
+
+Program.Sub.BuildStyle.End
+
+program.sub.form1_unload.start
+
+F.Intrinsic.Control.End
+
+program.sub.form1_unload.end
+
+
